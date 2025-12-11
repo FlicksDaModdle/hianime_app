@@ -1,0 +1,85 @@
+# codemagic.yaml
+
+workflows:
+  unsigned-ipa-build-ios26-1:
+    name: Unsigned iOS IPA Build (Xcode 26.1)
+    
+    instance_type: mac_mini_m1
+    
+    environment:
+      xcode: 26.1 
+      flutter: stable
+      cocoapods: default
+      vars:
+        XCODE_SCHEME: "Runner"
+        OUTPUT_DIR: "$CM_BUILD_DIR/build/ipa_output"
+        ARCHIVE_PATH: "$CM_BUILD_DIR/build/ios/manual_archive/$XCODE_SCHEME.xcarchive"
+        # 🚨 IMPORTANT: Replace this with your actual 10-character Apple Developer Team ID
+        IOS_TEAM_ID: "YOUR_TEAM_ID_HERE" 
+    
+    scripts:
+      - name: Install Dependencies (Flutter and Pods)
+        script: |
+          echo "Starting dependency installation..."
+          flutter clean
+          flutter pub get
+          cd ios
+          pod install --repo-update
+          
+      - name: 1. Build the App and Create the .xcarchive
+        script: |
+          echo "Building .xcarchive with codesigning explicitly disabled..."
+          mkdir -p $(dirname $ARCHIVE_PATH)
+          
+          xcodebuild archive \
+            -workspace ios/Runner.xcworkspace \
+            -scheme $XCODE_SCHEME \
+            -configuration Release \
+            -archivePath $ARCHIVE_PATH \
+            -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE_SPECIFIER=""
+          
+      - name: 2. Export the Unsigned IPA with Team ID Placeholder
+        script: |
+          echo "Exporting IPA using 'method: release-testing' (Xcode 26.1 required)..."
+          
+          # Bundle ID found in your previous log
+          BUNDLE_ID="dev.serverpod.cupertinoNativeExample"
+          
+          # 1. Create a temporary export options plist file
+          cat <<EOF > ExportOptions.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>release-testing</string> 
+              <key>teamID</key>
+              <string>$IOS_TEAM_ID</string>  <-- Uses the Team ID to satisfy the check
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>$BUNDLE_ID</key>
+                  <string>Codemagic Placeholder</string> 
+              </dict>
+              <key>stripSwiftSymbols</key>
+              <true/>
+              <key>thinning</key>
+              <string>&lt;none&gt;</string>
+          </dict>
+          </plist>
+          EOF
+          
+          # 2. Create the output directory
+          mkdir -p $OUTPUT_DIR
+          
+          # 3. Use xcodebuild to export the IPA from the archive
+          xcodebuild -exportArchive \
+            -archivePath $ARCHIVE_PATH \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath $OUTPUT_DIR
+          
+    artifacts:
+      - $OUTPUT_DIR/*.ipa
+      - /tmp/xcode_build/*.log

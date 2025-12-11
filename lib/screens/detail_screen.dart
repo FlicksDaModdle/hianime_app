@@ -34,7 +34,7 @@ class _DetailScreenState extends State<DetailScreen> {
   Future<void> fetchAnimeDetails() async {
     // The API Detail Endpoint: /api/v1/anime/{animeId}
     final url = Uri.parse(
-      'http://10.0.2.2:3030/api/v1/anime/${widget.animeId}',
+      'https://hianime-api-ufh9.onrender.com/api/v1/anime/${widget.animeId}',
     );
 
     try {

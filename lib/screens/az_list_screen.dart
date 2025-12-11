@@ -92,7 +92,7 @@ class _AZListScreenState extends State<AZListScreen>
 
     // API Endpoint: /api/v1/animes/az-list/{category}?page={page}
     final url = Uri.http(
-      '10.0.2.2:3030',
+      'hianime-api-ufh9.onrender.com',
       '/api/v1/animes/az-list/$apiCategory',
       {'page': _currentPage.toString()},
     );

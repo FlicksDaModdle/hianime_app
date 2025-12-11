@@ -66,7 +66,7 @@ class _HomeScreenContentState extends State<HomeScreenContent>
 
   // --- API Fetch Logic (Unchanged) ---
   Future<void> fetchHomeData() async {
-    final url = Uri.parse('http://10.0.2.2:3030/api/v1/home');
+    final url = Uri.parse('https://hianime-api-ufh9.onrender.com/api/v1/home');
 
     try {
       final response = await http.get(url);

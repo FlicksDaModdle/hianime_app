@@ -13,7 +13,7 @@ class AnimeSearchDelegate extends SearchDelegate<Anime?> {
     }
 
     // FINAL FIX: Using Uri.http with 'keyword' and 'page=1'.
-    final url = Uri.http('10.0.2.2:3030', '/api/v1/search', {
+    final url = Uri.http('hianime-api-ufh9.onrender.com', '/api/v1/search', {
       'keyword': query, // CORRECT parameter name found via testing
       'page': '1', // Required page parameter
     });
