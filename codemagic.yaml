@@ -14,8 +14,6 @@ workflows:
         XCODE_SCHEME: "Runner"
         OUTPUT_DIR: "$CM_BUILD_DIR/build/ipa_output"
         ARCHIVE_PATH: "$CM_BUILD_DIR/build/ios/manual_archive/$XCODE_SCHEME.xcarchive"
-        # 🚨 IMPORTANT: Replace this with your actual 10-character Apple Developer Team ID
-        IOS_TEAM_ID: "YOUR_TEAM_ID_HERE" 
     
     scripts:
       - name: Install Dependencies (Flutter and Pods)
@@ -41,45 +39,37 @@ workflows:
             CODE_SIGN_IDENTITY="" \
             PROVISIONING_PROFILE_SPECIFIER=""
           
-      - name: 2. Export the Unsigned IPA with Team ID Placeholder
+      - name: 2. Manually Package Unsigned IPA from Archive
         script: |
-          echo "Exporting IPA using 'method: release-testing' (Xcode 26.1 required)..."
+          echo "Bypassing xcodebuild export and manually packaging the IPA..."
           
-          # Bundle ID found in your previous log
-          BUNDLE_ID="dev.serverpod.cupertinoNativeExample"
+          APP_NAME="Runner.app"
           
-          # 1. Create a temporary export options plist file
-          cat <<EOF > ExportOptions.plist
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>method</key>
-              <string>release-testing</string> 
-              <key>teamID</key>
-              <string>$IOS_TEAM_ID</string>  <-- Uses the Team ID to satisfy the check
-              <key>provisioningProfiles</key>
-              <dict>
-                  <key>$BUNDLE_ID</key>
-                  <string>Codemagic Placeholder</string> 
-              </dict>
-              <key>stripSwiftSymbols</key>
-              <true/>
-              <key>thinning</key>
-              <string>&lt;none&gt;</string>
-          </dict>
-          </plist>
-          EOF
-          
-          # 2. Create the output directory
+          # 1. Create the final output directory
           mkdir -p $OUTPUT_DIR
           
-          # 3. Use xcodebuild to export the IPA from the archive
-          xcodebuild -exportArchive \
-            -archivePath $ARCHIVE_PATH \
-            -exportOptionsPlist ExportOptions.plist \
-            -exportPath $OUTPUT_DIR
+          # 2. Define the directory that holds the final app bundle inside the archive
+          APP_BUNDLE_PATH="$ARCHIVE_PATH/Products/Applications/$APP_NAME"
+          
+          # 3. Create the 'Payload' directory (required structure for an IPA)
+          mkdir -p Payload
+          
+          # 4. Copy the app bundle into the 'Payload' directory
+          if [ -d "$APP_BUNDLE_PATH" ]; then
+              cp -R "$APP_BUNDLE_PATH" Payload/
+              
+              # 5. ZIP the 'Payload' directory to create the IPA file
+              cd Payload/..
+              zip -r "$OUTPUT_DIR/$XCODE_SCHEME.ipa" Payload
+              
+              echo "✅ Successfully created unsigned IPA at $OUTPUT_DIR/$XCODE_SCHEME.ipa"
+              
+          else
+              echo "🚨 ERROR: App bundle not found at $APP_BUNDLE_PATH"
+              exit 1
+          fi
           
     artifacts:
+      # The final unsigned IPA will be found here
       - $OUTPUT_DIR/*.ipa
       - /tmp/xcode_build/*.log
