@@ -327,7 +327,7 @@ class _HomeScreenContentState extends State<HomeScreenContent>
     );
   }
 
-  // --- Anime Card Layout (Used for both Trending & Top Airing) ---
+  // --- Anime Card Layout ---
   Widget _buildAnimeCard(Anime anime, {int? forcedRank}) {
     final displayRank = forcedRank ?? anime.rank;
 
@@ -343,9 +343,9 @@ class _HomeScreenContentState extends State<HomeScreenContent>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Poster Image (Fixed Size for Uniformity)
+          // 1. Poster Image (Fixed Size 155px)
           SizedBox(
-            height: 155, // Fixed height ensures all posters match exactly
+            height: 155,
             width: double.infinity,
             child: Stack(
               children: [
@@ -406,6 +406,50 @@ class _HomeScreenContentState extends State<HomeScreenContent>
     );
   }
 
+  // --- View More Button (Matches Anime Card Size) ---
+  Widget _buildViewMoreButton() {
+    return GestureDetector(
+      onTap: () {
+        // TODO: Navigate to full list screen
+        print("View More Clicked");
+      },
+      child: Column(
+        children: [
+          // Matches the SizedBox height of the poster (155px)
+          Container(
+            height: 155,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1F1F1F),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.arrow_forward_ios, color: Colors.yellow, size: 24),
+                  SizedBox(height: 8),
+                  Text(
+                    'View More',
+                    style: TextStyle(
+                      color: Colors.yellow,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Empty placeholder text to match alignment of anime titles
+          const Text("", style: TextStyle(fontSize: 13)),
+        ],
+      ),
+    );
+  }
+
   // --- Main Build Method ---
   @override
   Widget build(BuildContext context) {
@@ -426,6 +470,14 @@ class _HomeScreenContentState extends State<HomeScreenContent>
         ),
       );
     }
+
+    // Top Airing Logic:
+    // Calculate how many anime to show (max 5)
+    final int animeCount = _topAiringAnime.length > 5
+        ? 5
+        : _topAiringAnime.length;
+    // The total list count is the anime count + 1 (for the button), unless the list is empty
+    final int itemCount = _topAiringAnime.isEmpty ? 0 : animeCount + 1;
 
     return ListView(
       children: [
@@ -477,13 +529,22 @@ class _HomeScreenContentState extends State<HomeScreenContent>
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.only(left: 12.0),
-            itemCount: _topAiringAnime.length,
+            itemCount: itemCount,
             itemBuilder: (context, index) {
+              // If the index equals the number of anime we are showing, it means we are at the end: Show Button
+              if (index == animeCount) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 12.0),
+                  child: SizedBox(width: 110, child: _buildViewMoreButton()),
+                );
+              }
+
               final anime = _topAiringAnime[index];
               return Padding(
                 padding: const EdgeInsets.only(right: 12.0),
                 child: SizedBox(
                   width: 110,
+                  // Pass rank + 1 to force display #1, #2, etc.
                   child: _buildAnimeCard(anime, forcedRank: index + 1),
                 ),
               );
