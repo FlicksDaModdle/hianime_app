@@ -71,5 +71,5 @@ workflows:
           
     artifacts:
       # The final unsigned IPA will be found here
-      - $OUTPUT_DIR/*.ipa
+      - $OUTPUT_DIR/HiAnime.ipa
       - /tmp/xcode_build/*.log
