@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 
 // Import all required components for the app structure
 import 'screens/anime_search.dart';
-import 'home_screen_content.dart'; // Tab 1 (Center)
-import 'screens/az_list_screen.dart'; // Tab 0
-import 'screens/genres_screen.dart'; // Tab 3
-// Still imported, but not in the tab list
-import 'screens/schedule_screen.dart'; // Tab 2
+import 'home_screen_content.dart'; // Tab 0 (Home)
+import 'screens/az_list_screen.dart'; // Tab 1 (A-Z)
+import 'screens/schedule_screen.dart'; // Tab 2 (Schedule)
 
 void main() {
   runApp(const HiAnimeApp());
@@ -32,13 +30,12 @@ class HiAnimeApp extends StatelessWidget {
           unselectedItemColor: Colors.white54,
         ),
       ),
-      // Start on the MainNavigator
       home: const MainNavigator(),
     );
   }
 }
 
-// --- MAIN WIDGET TO HANDLE BOTTOM NAVIGATION (4 TABS) ---
+// --- MAIN WIDGET TO HANDLE BOTTOM NAVIGATION (3 TABS) ---
 class MainNavigator extends StatefulWidget {
   const MainNavigator({super.key});
 
@@ -47,75 +44,107 @@ class MainNavigator extends StatefulWidget {
 }
 
 class _MainNavigatorState extends State<MainNavigator> {
-  // Start the index at 1 (the center position: Home)
-  int _selectedIndex = 1;
+  // Start at Index 0 (Home)
+  int _selectedIndex = 0;
 
-  // GlobalKey list to manage each tab's navigation state independently (4 tabs total)
+  // GlobalKey for Home Screen to trigger Scroll Resets
+  final GlobalKey<HomeScreenContentState> _homeScreenKey = GlobalKey();
+
+  // Keys for nested navigators (3 tabs)
   final List<GlobalKey<NavigatorState>> _navigatorKeys = [
-    GlobalKey<NavigatorState>(), // AZ List
     GlobalKey<NavigatorState>(), // Home
+    GlobalKey<NavigatorState>(), // AZ List
     GlobalKey<NavigatorState>(), // Schedule
-    GlobalKey<NavigatorState>(), // Genres
   ];
 
-  // List of initial screen widgets in their new order: [AZ, HOME, Schedule, Genres]
-  final List<Widget> _tabScreens = [
-    const AZListScreen(), // Index 0
-    const HomeScreenContent(), // Index 1 (HOME - CENTER)
-    const ScheduleScreen(), // Index 2
-    const GenresScreen(), // Index 3
-  ];
+  // List of screens
+  List<Widget> _tabScreens = [];
+
+  // Custom Observers to track navigation stack changes per tab
+  List<NavigatorObserver> _navigatorObservers = [];
+
+  @override
+  void initState() {
+    super.initState();
+
+    // 1. Initialize Screens
+    _tabScreens = [
+      HomeScreenContent(key: _homeScreenKey), // Index 0
+      const AZListScreen(), // Index 1
+      const ScheduleScreen(), // Index 2
+    ];
+
+    // 2. Initialize Observers (Count = 3)
+    // We initialize this immediately to prevent LateInitializationError
+    _navigatorObservers = List.generate(
+      3,
+      (index) => _TabNavigatorObserver(() {
+        // Use PostFrameCallback to avoid "setState during build" errors
+        if (mounted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() {});
+          });
+        }
+      }),
+    );
+  }
 
   void _onItemTapped(int index) {
-    // If the same tab is tapped, pop back to the root of that tab's navigation stack
+    // Logic: If tapping Home (Index 0) while on Home, reset scrolls
+    if (index == 0 && index == _selectedIndex) {
+      _homeScreenKey.currentState?.resetScrollPositions();
+    }
+
+    // Logic: If tapping any tab that is already selected, pop to root
     if (index == _selectedIndex) {
       _navigatorKeys[index].currentState?.popUntil((route) => route.isFirst);
     }
+
     setState(() {
       _selectedIndex = index;
     });
   }
 
-  // Map tab index to tab titles for the AppBar
-  final List<String> _tabTitles = [
-    'A-Z List',
-    'HiAnime', // Center Tab Title
-    'Schedule',
-    'Genres',
-  ];
-
   // Helper widget to build the nested Navigator for each tab
   Widget _buildTabNavigator(int index) {
     return Navigator(
       key: _navigatorKeys[index],
+      observers: [_navigatorObservers[index]], // Attach observer here
       onGenerateRoute: (routeSettings) {
-        return MaterialPageRoute(
-          // Ensure the initial route uses the correct screen content
-          builder: (context) => _tabScreens[index],
-        );
+        return MaterialPageRoute(builder: (context) => _tabScreens[index]);
       },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      // Handle the physical back button: pop the nested navigator first
-      onWillPop: () async {
-        final isFirstRouteInCurrentTab = await _navigatorKeys[_selectedIndex]
-            .currentState
-            ?.maybePop();
+    // Check if the current nested navigator can pop (go back)
+    // We use a safe check with ?. because keys might not be attached yet in first frame
+    final bool canPop =
+        _navigatorKeys[_selectedIndex].currentState?.canPop() ?? false;
 
-        // If the current tab's navigation is popped to the root, exit the app
-        if (isFirstRouteInCurrentTab == false) {
-          return true;
+    return WillPopScope(
+      // Handle Android physical back button
+      onWillPop: () async {
+        final navigatorState = _navigatorKeys[_selectedIndex].currentState;
+        if (navigatorState != null && navigatorState.canPop()) {
+          navigatorState.pop();
+          return false; // Prevent closing app
         }
-        return false;
+        return true; // Close app if at root
       },
       child: Scaffold(
         appBar: AppBar(
-          // Title changes based on the root page of the current tab
-          title: Text(_tabTitles[_selectedIndex]),
+          // 3. Conditional Leading Button
+          // Only show Back Button if we can pop (not at root)
+          leading: canPop
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+                  onPressed: () {
+                    _navigatorKeys[_selectedIndex].currentState?.pop();
+                  },
+                )
+              : null, // Hides the button completely at root (Home screen)
           actions: [
             IconButton(
               onPressed: () {
@@ -129,7 +158,6 @@ class _MainNavigatorState extends State<MainNavigator> {
 
         body: IndexedStack(
           index: _selectedIndex,
-          // Build a Navigator for each screen
           children: List.generate(
             _tabScreens.length,
             (index) => _buildTabNavigator(index),
@@ -139,22 +167,15 @@ class _MainNavigatorState extends State<MainNavigator> {
         bottomNavigationBar: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
           items: const <BottomNavigationBarItem>[
-            // 4 items total: Index 0, 1 (Center), 2, 3
+            // 3 items total
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
             BottomNavigationBarItem(
               icon: Icon(Icons.sort_by_alpha),
               label: 'A-Z',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.home),
-              label: 'Home',
-            ), // CENTER
-            BottomNavigationBarItem(
               icon: Icon(Icons.calendar_today),
               label: 'Schedule',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.category),
-              label: 'Genres',
             ),
           ],
           currentIndex: _selectedIndex,
@@ -163,4 +184,23 @@ class _MainNavigatorState extends State<MainNavigator> {
       ),
     );
   }
+}
+
+// --- Custom Observer to Detect Push/Pop Events ---
+class _TabNavigatorObserver extends NavigatorObserver {
+  final VoidCallback onNavigationChanged;
+  _TabNavigatorObserver(this.onNavigationChanged);
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      onNavigationChanged();
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      onNavigationChanged();
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      onNavigationChanged();
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) =>
+      onNavigationChanged();
 }

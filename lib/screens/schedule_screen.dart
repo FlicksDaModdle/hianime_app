@@ -39,11 +39,10 @@ class _ScheduleScreenState extends State<ScheduleScreen>
   bool _isLoading = true;
   String _errorMessage = '';
 
-  // API base URL for date-specific HTML schedule (tzOffset=360)
+  // API base URL for date-specific HTML schedule (tzOffset=360 for GMT+6 as per your previous code)
   final String _baseUrl =
       'https://hianime.to/ajax/schedule/list?tzOffset=360&date=';
 
-  // Define the correct calendar order for sorting
   final List<String> _dayOrder = const [
     'Monday',
     'Tuesday',
@@ -54,11 +53,10 @@ class _ScheduleScreenState extends State<ScheduleScreen>
     'Sunday',
   ];
 
-  // Set initial selected date index to December 13th (Saturday), assuming today is Dec 11th (Thursday)
-  // Index 0 (Thu 11th), Index 1 (Fri 12th), Index 2 (Sat 13th)
-  int _selectedDateIndex = 2;
+  // Set initial selected date index to today (Index 0)
+  int _selectedDateIndex = 0;
 
-  // List of dates for the header carousel
+  // List of dates for the header carousel (Today + next 6 days)
   final List<DateTime> _scheduleDates = List.generate(
     7,
     (i) => DateTime.now().add(Duration(days: i)),
@@ -70,10 +68,9 @@ class _ScheduleScreenState extends State<ScheduleScreen>
     _fetchScheduleForWeek();
   }
 
-  // --- HTML Extraction Logic ---
+  // --- HTML Extraction Logic (Unchanged) ---
   List<ScheduleItem> _extractScheduleItems(String htmlContent) {
     final List<ScheduleItem> items = [];
-
     try {
       final document = parse(htmlContent);
       final List<html.Element> linkElements = document.querySelectorAll(
@@ -97,13 +94,13 @@ class _ScheduleScreenState extends State<ScheduleScreen>
         );
       }
     } catch (e) {
-      print('SCHEDULE PARSING ERROR: $e');
+      debugPrint('SCHEDULE PARSING ERROR: $e');
       return [];
     }
     return items;
   }
 
-  // --- Logic to fetch schedule for the next 7 days (DYNAMIC) ---
+  // --- Logic to fetch schedule for the next 7 days (Unchanged) ---
   Future<void> _fetchScheduleForWeek() async {
     try {
       final Map<String, List<ScheduleItem>> groups = {};
@@ -111,18 +108,15 @@ class _ScheduleScreenState extends State<ScheduleScreen>
       for (int i = 0; i < 7; i++) {
         final date = _scheduleDates[i];
         final String dayName = _dayOrder[date.weekday - 1];
-
-        final formattedDate =
-            '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-
+        final formattedDate = DateFormat('yyyy-MM-dd').format(date);
         final url = Uri.parse(_baseUrl + formattedDate);
 
-        // Use Headers and Timeout for robustness
         final response = await http
             .get(
               url,
               headers: {
-                'User-Agent': 'Mozilla/5.0 (compatible; FlutterApp/1.0)',
+                'User-Agent':
+                    'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
               },
             )
             .timeout(const Duration(seconds: 15));
@@ -133,34 +127,31 @@ class _ScheduleScreenState extends State<ScheduleScreen>
 
           if (htmlContent != null && htmlContent.trim().isNotEmpty) {
             final List<ScheduleItem> items = _extractScheduleItems(htmlContent);
-
             if (items.isNotEmpty) {
               groups[dayName] = items;
             }
           }
-        } else {
-          print('HTTP ERROR for $dayName: ${response.statusCode}');
         }
       }
 
-      // Final success state update
-      setState(() {
-        _scheduleData = groups;
-        _errorMessage = '';
-      });
-    } on TimeoutException {
-      setState(() {
-        _errorMessage =
-            "Connection Timed Out after 15 seconds. Check API status.";
-      });
-    } catch (e) {
-      setState(() {
-        _errorMessage = "Network or Decoding Error: $e";
-      });
-    } finally {
-      // ENSURE LOADING STATE IS ALWAYS FALSE
-      if (_isLoading) {
+      if (mounted) {
         setState(() {
+          _scheduleData = groups;
+          _isLoading = false;
+          _errorMessage = '';
+        });
+      }
+    } on TimeoutException {
+      if (mounted) {
+        setState(() {
+          _errorMessage = "Connection Timed Out. Check API status.";
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = "Error: $e";
           _isLoading = false;
         });
       }
@@ -169,13 +160,15 @@ class _ScheduleScreenState extends State<ScheduleScreen>
 
   // --- UI Builders ---
 
+  // REDESIGNED: Date Carousel to match reference image layout
   Widget _buildDateCarousel() {
-    return SizedBox(
-      height: 60,
+    return Container(
+      height: 70, // Slightly taller for the new look
+      margin: const EdgeInsets.symmetric(vertical: 16.0),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: _scheduleDates.length,
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        padding: const EdgeInsets.symmetric(horizontal: 12.0),
         itemBuilder: (context, index) {
           final date = _scheduleDates[index];
           final isSelected = index == _selectedDateIndex;
@@ -188,30 +181,32 @@ class _ScheduleScreenState extends State<ScheduleScreen>
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              margin: const EdgeInsets.only(right: 8.0),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              width: 90, // Fixed width for uniform tabs
+              margin: const EdgeInsets.symmetric(horizontal: 4.0),
               decoration: BoxDecoration(
+                // Use pink/yellow for selected, dark grey for unselected
                 color: isSelected
-                    ? const Color(0xFFF962A8)
-                    : const Color(0xFF1F1F1F),
-                borderRadius: BorderRadius.circular(15),
+                    ? const Color.fromARGB(255, 255, 230, 7) // Yellow (Theme)
+                    : const Color(0xFF2C2C2C), // Dark Grey
+                borderRadius: BorderRadius.circular(12), // Rounded corners
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    DateFormat('E').format(date), // Day (Thu, Fri)
+                    DateFormat('E').format(date), // Day (e.g., Fri)
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: isSelected ? Colors.white : Colors.white70,
+                      color: isSelected ? Colors.black : Colors.white,
                     ),
                   ),
+                  const SizedBox(height: 4),
                   Text(
-                    DateFormat('MMM dd').format(date), // Date (Dec 11)
+                    DateFormat('MMM dd').format(date), // Date (e.g., Dec 12)
                     style: TextStyle(
-                      fontSize: 11,
-                      color: isSelected ? Colors.white : Colors.white54,
+                      fontSize: 13,
+                      color: isSelected ? Colors.black87 : Colors.white70,
                     ),
                   ),
                 ],
@@ -223,6 +218,7 @@ class _ScheduleScreenState extends State<ScheduleScreen>
     );
   }
 
+  // REDESIGNED: Schedule List Item to match reference image layout
   Widget _buildScheduleItemsList() {
     final DateTime selectedDate = _scheduleDates[_selectedDateIndex];
     final String selectedDayName = _dayOrder[selectedDate.weekday - 1];
@@ -233,24 +229,23 @@ class _ScheduleScreenState extends State<ScheduleScreen>
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Text(
-            'No schedule items found for $selectedDayName.',
+            'No schedule available for ${DateFormat('EEEE, MMM d').format(selectedDate)}.',
             style: const TextStyle(color: Colors.white70),
           ),
         ),
       );
     }
 
-    // Sort by time string (e.g., '07:00' before '10:30')
+    // Sort by time
     items.sort((a, b) => a.time.compareTo(b.time));
 
     return ListView.separated(
       itemCount: items.length,
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
       separatorBuilder: (context, index) => const Divider(
-        color: Color(0xFF1F1F1F),
+        color: Color(0xFF2C2C2C), // Subtle divider color
         height: 1,
         thickness: 1,
-        indent: 16,
-        endIndent: 16,
       ),
       itemBuilder: (context, index) {
         final item = items[index];
@@ -264,46 +259,44 @@ class _ScheduleScreenState extends State<ScheduleScreen>
             );
           },
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 10.0,
-            ),
+            padding: const EdgeInsets.symmetric(vertical: 14.0),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Time (Left Clumped)
+                // Time (Left)
                 SizedBox(
-                  width: 60,
+                  width: 50,
                   child: Text(
                     item.time,
                     style: const TextStyle(
                       fontSize: 15,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white70, // Slightly muted time
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 16),
+
+                // Title (Middle, Bold)
+                Expanded(
+                  child: Text(
+                    item.title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold, // Bold title as in image
                       color: Colors.white,
                     ),
                   ),
                 ),
 
-                const SizedBox(width: 10),
+                const SizedBox(width: 16),
 
-                // Title (Expanded)
-                Expanded(
-                  child: Text(
-                    item.title,
-                    style: const TextStyle(fontSize: 15, color: Colors.white),
-                  ),
-                ),
-
-                // Episode Number (Right Clumped)
+                // Episode (Right)
                 Text(
                   'Episode ${item.episode}',
-                  style: const TextStyle(fontSize: 13, color: Colors.white70),
+                  style: const TextStyle(fontSize: 14, color: Colors.white70),
                 ),
-
-                const SizedBox(width: 8),
-
-                // Play Icon
-                const Icon(Icons.play_arrow, size: 16, color: Colors.white54),
               ],
             ),
           ),
@@ -318,10 +311,13 @@ class _ScheduleScreenState extends State<ScheduleScreen>
 
     if (_errorMessage.isNotEmpty) {
       return Center(
-        child: Text(
-          _errorMessage,
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.red),
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Text(
+            _errorMessage,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.red),
+          ),
         ),
       );
     }
@@ -329,40 +325,12 @@ class _ScheduleScreenState extends State<ScheduleScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 1. Top Bar: Title and Time (GMT)
-        Padding(
-          padding: const EdgeInsets.only(
-            left: 16.0,
-            right: 16.0,
-            top: 16.0,
-            bottom: 8.0,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Estimated Schedule',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFFF962A8), // Pink color
-                ),
-              ),
-              Text(
-                // Display current GMT time based on the fixed offset
-                'GMT+06:00 ${DateFormat('MM/dd/yyyy HH:mm:ss a').format(DateTime.now().toLocal())}',
-                style: const TextStyle(fontSize: 10, color: Colors.white70),
-              ),
-            ],
-          ),
-        ),
+        // Removed the previous "Estimated Schedule" header row
 
-        // 2. Date Carousel Header
+        // 1. Date Carousel Header (Redesigned)
         _buildDateCarousel(),
 
-        const SizedBox(height: 12),
-
-        // 3. Schedule Items List (Loading spinner handled by Expanded)
+        // 2. Schedule Items List
         Expanded(
           child: _isLoading
               ? const Center(

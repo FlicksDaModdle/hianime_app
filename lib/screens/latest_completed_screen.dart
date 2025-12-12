@@ -14,33 +14,28 @@ class LatestCompletedScreen extends StatefulWidget {
 }
 
 class _LatestCompletedScreenState extends State<LatestCompletedScreen> {
-  // Scroll Controller
   final ScrollController _scrollController = ScrollController();
-
-  // State Variables
   List<Anime> _animeList = [];
   bool _isLoading = true;
   bool _hasNextPage = true;
   int _currentPage = 1;
   String _errorMessage = '';
 
-  // API Base URL
   final String _baseApiUrl = 'https://hianime-api-ufh9.onrender.com/api/v1';
 
   @override
   void initState() {
     super.initState();
-    _fetchTopAiring();
+    _fetchCompleted();
   }
 
   @override
   void dispose() {
-    _scrollController.dispose(); // Dispose controller to prevent leaks
+    _scrollController.dispose();
     super.dispose();
   }
 
-  // --- API Fetch Logic ---
-  Future<void> _fetchTopAiring() async {
+  Future<void> _fetchCompleted() async {
     setState(() {
       _isLoading = true;
       _errorMessage = '';
@@ -51,7 +46,6 @@ class _LatestCompletedScreenState extends State<LatestCompletedScreen> {
       final response = await http.get(url);
       final Map<String, dynamic> fullResponse = json.decode(response.body);
 
-      // 1. Check for "resource not found" (End of list)
       if (fullResponse['success'] == false &&
           fullResponse['message'] == 'resource not found') {
         if (_currentPage > 1) {
@@ -77,7 +71,6 @@ class _LatestCompletedScreenState extends State<LatestCompletedScreen> {
         return;
       }
 
-      // 2. Handle Success
       if (response.statusCode == 200 && fullResponse['success'] == true) {
         final Map<String, dynamic> data = fullResponse['data'];
         final List animeListJson = data['response'] ?? [];
@@ -103,31 +96,22 @@ class _LatestCompletedScreenState extends State<LatestCompletedScreen> {
     }
   }
 
-  // --- Pagination Logic ---
   void _changePage(int change) {
     if (_isLoading) return;
-
     final newPage = _currentPage + change;
-
     if (newPage >= 1 && (change < 0 || _hasNextPage)) {
       setState(() {
         _currentPage = newPage;
       });
-
-      // Reset Scroll Position to Top
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(0);
       }
-
-      _fetchTopAiring();
+      _fetchCompleted();
     }
   }
 
-  // --- Card Builder ---
   Widget _buildAnimeCard(Anime anime, int index) {
-    // Rank calculation: (Current Page - 1) * 20 items per page + index + 1
     final int rank = ((_currentPage - 1) * 20) + index + 1;
-
     return GestureDetector(
       onTap: () {
         Navigator.of(context).push(
@@ -204,11 +188,9 @@ class _LatestCompletedScreenState extends State<LatestCompletedScreen> {
     );
   }
 
-  // --- Pagination Controls ---
   Widget _buildPaginationControls() {
     final bool isFirstPage = _currentPage == 1;
     final bool isLastPage = !_hasNextPage;
-
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
       color: const Color(0xFF1F1F1F),
@@ -252,15 +234,7 @@ class _LatestCompletedScreenState extends State<LatestCompletedScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text(
-          'Recently Completed',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-      ),
+      backgroundColor: const Color(0xFF111111),
       body: _errorMessage.isNotEmpty
           ? Center(
               child: Text(
@@ -270,7 +244,19 @@ class _LatestCompletedScreenState extends State<LatestCompletedScreen> {
               ),
             )
           : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Text(
+                    'Recently Completed',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
                 Expanded(
                   child: _isLoading && _animeList.isEmpty
                       ? const Center(
@@ -279,7 +265,7 @@ class _LatestCompletedScreenState extends State<LatestCompletedScreen> {
                           ),
                         )
                       : GridView.builder(
-                          controller: _scrollController, // Attach controller
+                          controller: _scrollController,
                           padding: const EdgeInsets.all(12),
                           gridDelegate:
                               const SliverGridDelegateWithFixedCrossAxisCount(

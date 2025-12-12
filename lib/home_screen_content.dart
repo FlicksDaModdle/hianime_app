@@ -6,22 +6,25 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import 'models/anime.dart';
 import 'screens/detail_screen.dart';
-import 'screens/top_airing_screen.dart'; // Make sure this import is here
-import 'screens/most_popular_screen.dart'; // Make sure this import is here
-import 'screens/most_favorite_screen.dart'; // Make sure this import is here
-import 'screens/latest_completed_screen.dart'; // Make sure this import is here
+import 'screens/top_airing_screen.dart';
+import 'screens/most_popular_screen.dart';
+import 'screens/most_favorite_screen.dart';
+import 'screens/latest_completed_screen.dart';
 
 class HomeScreenContent extends StatefulWidget {
   const HomeScreenContent({super.key});
 
   @override
-  State<HomeScreenContent> createState() => _HomeScreenContentState();
+  // Changed to public State class so we can access it via GlobalKey
+  State<HomeScreenContent> createState() => HomeScreenContentState();
 }
 
-class _HomeScreenContentState extends State<HomeScreenContent>
+// REMOVED UNDERSCORE: This is now public
+class HomeScreenContentState extends State<HomeScreenContent>
     with AutomaticKeepAliveClientMixin<HomeScreenContent> {
+  // Forces rebuild on tab switch (if not using IndexedStack)
   @override
-  bool get wantKeepAlive => true;
+  bool get wantKeepAlive => false;
 
   // --- Data Lists ---
   List<Anime> _trendingAnime = [];
@@ -33,6 +36,17 @@ class _HomeScreenContentState extends State<HomeScreenContent>
 
   bool _isLoading = true;
   String _errorMessage = '';
+
+  // --- Scroll Controllers ---
+  // Vertical Controller (Main Page)
+  final ScrollController _mainScrollController = ScrollController();
+
+  // Horizontal Controllers (Rows)
+  final ScrollController _trendingController = ScrollController();
+  final ScrollController _topAiringController = ScrollController();
+  final ScrollController _popularController = ScrollController();
+  final ScrollController _favoriteController = ScrollController();
+  final ScrollController _completedController = ScrollController();
 
   // --- Carousel State ---
   late PageController _pageController;
@@ -56,7 +70,40 @@ class _HomeScreenContentState extends State<HomeScreenContent>
   void dispose() {
     _timer?.cancel();
     _pageController.dispose();
+
+    // Dispose all controllers
+    _mainScrollController.dispose();
+    _trendingController.dispose();
+    _topAiringController.dispose();
+    _popularController.dispose();
+    _favoriteController.dispose();
+    _completedController.dispose();
+
     super.dispose();
+  }
+
+  // --- PUBLIC METHOD: Call this from your BottomNavigationBar ---
+  void resetScrollPositions() {
+    // 1. Reset Main Vertical Scroll
+    if (_mainScrollController.hasClients) {
+      _mainScrollController.jumpTo(0);
+    }
+
+    // 2. Reset All Horizontal Rows
+    if (_trendingController.hasClients) _trendingController.jumpTo(0);
+    if (_topAiringController.hasClients) _topAiringController.jumpTo(0);
+    if (_popularController.hasClients) _popularController.jumpTo(0);
+    if (_favoriteController.hasClients) _favoriteController.jumpTo(0);
+    if (_completedController.hasClients) _completedController.jumpTo(0);
+  }
+
+  // --- Universal Navigation Helper ---
+  Future<void> _navigateAndReset(Widget screen) async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => screen));
+    // Auto-reset when returning from details
+    resetScrollPositions();
   }
 
   void _startAutoAdvance() {
@@ -85,45 +132,53 @@ class _HomeScreenContentState extends State<HomeScreenContent>
         if (fullResponse['success'] == true && fullResponse['data'] != null) {
           final data = fullResponse['data'];
 
-          // Parse all lists
-          final List trendingList = data['trending'] ?? [];
-          final List spotlightList = data['spotlight'] ?? [];
-          final List topAiringList = data['topAiring'] ?? [];
-          final List mostPopularList = data['mostPopular'] ?? [];
-          final List mostFavoriteList = data['mostFavorite'] ?? [];
-          final List latestCompletedList = data['latestCompleted'] ?? [];
-
+          if (mounted) {
+            setState(() {
+              _spotlightAnime = data['spotlight'] ?? [];
+              _trendingAnime =
+                  (data['trending'] as List?)
+                      ?.map((json) => Anime.fromJson(json))
+                      .toList() ??
+                  [];
+              _topAiringAnime =
+                  (data['topAiring'] as List?)
+                      ?.map((json) => Anime.fromJson(json))
+                      .toList() ??
+                  [];
+              _mostPopularAnime =
+                  (data['mostPopular'] as List?)
+                      ?.map((json) => Anime.fromJson(json))
+                      .toList() ??
+                  [];
+              _mostFavoriteAnime =
+                  (data['mostFavorite'] as List?)
+                      ?.map((json) => Anime.fromJson(json))
+                      .toList() ??
+                  [];
+              _latestCompletedAnime =
+                  (data['latestCompleted'] as List?)
+                      ?.map((json) => Anime.fromJson(json))
+                      .toList() ??
+                  [];
+              _isLoading = false;
+            });
+          }
+        }
+      } else {
+        if (mounted) {
           setState(() {
-            _spotlightAnime = spotlightList;
-            _trendingAnime = trendingList
-                .map((json) => Anime.fromJson(json))
-                .toList();
-            _topAiringAnime = topAiringList
-                .map((json) => Anime.fromJson(json))
-                .toList();
-            _mostPopularAnime = mostPopularList
-                .map((json) => Anime.fromJson(json))
-                .toList();
-            _mostFavoriteAnime = mostFavoriteList
-                .map((json) => Anime.fromJson(json))
-                .toList();
-            _latestCompletedAnime = latestCompletedList
-                .map((json) => Anime.fromJson(json))
-                .toList();
+            _errorMessage = "Server Error: ${response.statusCode}";
             _isLoading = false;
           });
         }
-      } else {
+      }
+    } catch (e) {
+      if (mounted) {
         setState(() {
-          _errorMessage = "Server Error: ${response.statusCode}";
+          _errorMessage = "Connection Failed: $e";
           _isLoading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _errorMessage = "Connection Failed: $e";
-        _isLoading = false;
-      });
     }
   }
 
@@ -157,13 +212,8 @@ class _HomeScreenContentState extends State<HomeScreenContent>
     final String backgroundImage = poster.replaceAll('1366x768', '1366x768');
 
     return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => DetailScreen(animeId: id, animeTitle: title),
-          ),
-        );
-      },
+      onTap: () =>
+          _navigateAndReset(DetailScreen(animeId: id, animeTitle: title)),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
         decoration: BoxDecoration(
@@ -289,22 +339,15 @@ class _HomeScreenContentState extends State<HomeScreenContent>
 
   // --- 2. Shared Widgets for Lists ---
 
-  // Standard Anime Card
   Widget _buildAnimeCard(Anime anime, {int? forcedRank}) {
     final displayRank = forcedRank ?? anime.rank;
     return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) =>
-                DetailScreen(animeId: anime.id, animeTitle: anime.title),
-          ),
-        );
-      },
+      onTap: () => _navigateAndReset(
+        DetailScreen(animeId: anime.id, animeTitle: anime.title),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Fixed Height Image Container
           SizedBox(
             height: 155,
             width: double.infinity,
@@ -365,28 +408,23 @@ class _HomeScreenContentState extends State<HomeScreenContent>
     );
   }
 
-  // View More Button (Updated with Navigation Logic)
   Widget _buildViewMoreButton(String sectionTitle) {
     return GestureDetector(
       onTap: () {
+        Widget? screen;
+
         if (sectionTitle == 'Top Airing') {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (context) => const TopAiringScreen()),
-          );
+          screen = const TopAiringScreen();
         } else if (sectionTitle == 'Most Popular') {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (context) => const MostPopularScreen()),
-          );
+          screen = const MostPopularScreen();
         } else if (sectionTitle == 'Most Favorite') {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (context) => const MostFavoriteScreen()),
-          );
+          screen = const MostFavoriteScreen();
         } else if (sectionTitle == 'Recently Completed') {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => const LatestCompletedScreen(),
-            ),
-          );
+          screen = const LatestCompletedScreen();
+        }
+
+        if (screen != null) {
+          _navigateAndReset(screen);
         }
       },
       child: Column(
@@ -424,9 +462,11 @@ class _HomeScreenContentState extends State<HomeScreenContent>
     );
   }
 
-  // --- 3. Reusable Section Builder ---
-  Widget _buildHorizontalSection(String title, List<Anime> animeList) {
-    // Logic: Show max 5 items, then append View More button.
+  Widget _buildHorizontalSection(
+    String title,
+    List<Anime> animeList,
+    ScrollController controller,
+  ) {
     final int animeCount = animeList.length > 5 ? 5 : animeList.length;
     final int itemCount = animeList.isEmpty ? 0 : animeCount + 1;
 
@@ -447,17 +487,16 @@ class _HomeScreenContentState extends State<HomeScreenContent>
         SizedBox(
           height: 200,
           child: ListView.builder(
+            controller: controller,
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.only(left: 12.0),
             itemCount: itemCount,
             itemBuilder: (context, index) {
-              // Last item is always the button
               if (index == animeCount) {
                 return Padding(
                   padding: const EdgeInsets.only(right: 12.0),
                   child: SizedBox(
                     width: 110,
-                    // Pass the title so we know which screen to open
                     child: _buildViewMoreButton(title),
                   ),
                 );
@@ -468,7 +507,6 @@ class _HomeScreenContentState extends State<HomeScreenContent>
                 padding: const EdgeInsets.only(right: 12.0),
                 child: SizedBox(
                   width: 110,
-                  // Force Rank = Index + 1 for visual consistency
                   child: _buildAnimeCard(anime, forcedRank: index + 1),
                 ),
               );
@@ -479,7 +517,6 @@ class _HomeScreenContentState extends State<HomeScreenContent>
     );
   }
 
-  // --- Main Build ---
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -499,12 +536,12 @@ class _HomeScreenContentState extends State<HomeScreenContent>
       );
     }
 
+    // Pass the _mainScrollController to the vertical list
     return ListView(
+      controller: _mainScrollController,
       children: [
-        // 0. Spotlight
         _buildSpotlightCarousel(),
 
-        // 1. Trending Now (Standard list, no view more limit)
         const Padding(
           padding: EdgeInsets.only(left: 12.0, top: 10.0, bottom: 8.0),
           child: Text(
@@ -519,6 +556,7 @@ class _HomeScreenContentState extends State<HomeScreenContent>
         SizedBox(
           height: 200,
           child: ListView.builder(
+            controller: _trendingController,
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.only(left: 12.0),
             itemCount: _trendingAnime.length,
@@ -532,17 +570,26 @@ class _HomeScreenContentState extends State<HomeScreenContent>
           ),
         ),
 
-        // 2. Top Airing
-        _buildHorizontalSection("Top Airing", _topAiringAnime),
-
-        // 3. Most Popular
-        _buildHorizontalSection("Most Popular", _mostPopularAnime),
-
-        // 4. Most Favorite
-        _buildHorizontalSection("Most Favorite", _mostFavoriteAnime),
-
-        // 5. Recently Completed
-        _buildHorizontalSection("Recently Completed", _latestCompletedAnime),
+        _buildHorizontalSection(
+          "Top Airing",
+          _topAiringAnime,
+          _topAiringController,
+        ),
+        _buildHorizontalSection(
+          "Most Popular",
+          _mostPopularAnime,
+          _popularController,
+        ),
+        _buildHorizontalSection(
+          "Most Favorite",
+          _mostFavoriteAnime,
+          _favoriteController,
+        ),
+        _buildHorizontalSection(
+          "Recently Completed",
+          _latestCompletedAnime,
+          _completedController,
+        ),
 
         const SizedBox(height: 30),
       ],
