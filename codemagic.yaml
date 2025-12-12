@@ -11,7 +11,7 @@ workflows:
       flutter: stable
       cocoapods: default
       vars:
-        XCODE_SCHEME: "Runner"
+        XCODE_SCHEME: "HiAnime"
         OUTPUT_DIR: "$CM_BUILD_DIR/build/ipa_output"
         ARCHIVE_PATH: "$CM_BUILD_DIR/build/ios/manual_archive/$XCODE_SCHEME.xcarchive"
     
@@ -30,7 +30,7 @@ workflows:
           mkdir -p $(dirname $ARCHIVE_PATH)
           
           xcodebuild archive \
-            -workspace ios/Runner.xcworkspace \
+            -workspace ios/HiAnime.xcworkspace \
             -scheme $XCODE_SCHEME \
             -configuration Release \
             -archivePath $ARCHIVE_PATH \
@@ -43,7 +43,7 @@ workflows:
         script: |
           echo "Bypassing xcodebuild export and manually packaging the IPA..."
           
-          APP_NAME="Runner.app"
+          APP_NAME="HiAnime.app"
           
           # 1. Create the final output directory
           mkdir -p $OUTPUT_DIR
