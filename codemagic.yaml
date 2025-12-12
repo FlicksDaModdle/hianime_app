@@ -60,9 +60,9 @@ workflows:
               
               # 5. ZIP the 'Payload' directory to create the IPA file
               cd Payload/..
-              zip -r "$OUTPUT_DIR/$XCODE_SCHEME.ipa" Payload
+              zip -r "$OUTPUT_DIR/HiAnime.ipa" Payload
               
-              echo "✅ Successfully created unsigned IPA at $OUTPUT_DIR/$XCODE_SCHEME.ipa"
+              echo "✅ Successfully created unsigned IPA at $OUTPUT_DIR/HiAnime.ipa"
               
           else
               echo "🚨 ERROR: App bundle not found at $APP_BUNDLE_PATH"
