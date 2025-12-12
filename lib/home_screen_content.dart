@@ -19,18 +19,22 @@ class _HomeScreenContentState extends State<HomeScreenContent>
   @override
   bool get wantKeepAlive => true;
 
+  // --- Data Lists ---
   List<Anime> _trendingAnime = [];
   List<Anime> _topAiringAnime = [];
+  List<Anime> _mostPopularAnime = [];
+  List<Anime> _mostFavoriteAnime = [];
+  List<Anime> _latestCompletedAnime = [];
   List<dynamic> _spotlightAnime = [];
+
   bool _isLoading = true;
   String _errorMessage = '';
 
-  // Controller and Timer for Auto-Advancing Spotlight
+  // --- Carousel State ---
   late PageController _pageController;
   Timer? _timer;
   int _currentPage = 0;
 
-  // Final working external API URL
   final String _baseApiUrl = 'https://hianime-api-ufh9.onrender.com/api/v1';
 
   @override
@@ -53,12 +57,9 @@ class _HomeScreenContentState extends State<HomeScreenContent>
 
   void _startAutoAdvance() {
     _timer?.cancel();
-
     _timer = Timer.periodic(const Duration(seconds: 8), (Timer timer) {
       if (!_pageController.hasClients) return;
-
       int nextPage = (_currentPage + 1);
-
       _pageController.animateToPage(
         nextPage,
         duration: const Duration(milliseconds: 600),
@@ -78,16 +79,31 @@ class _HomeScreenContentState extends State<HomeScreenContent>
         final Map<String, dynamic> fullResponse = json.decode(response.body);
 
         if (fullResponse['success'] == true && fullResponse['data'] != null) {
-          final List trendingList = fullResponse['data']['trending'];
-          final List spotlightList = fullResponse['data']['spotlight'];
-          final List topAiringList = fullResponse['data']['topAiring'];
+          final data = fullResponse['data'];
+
+          // Parse all lists
+          final List trendingList = data['trending'] ?? [];
+          final List spotlightList = data['spotlight'] ?? [];
+          final List topAiringList = data['topAiring'] ?? [];
+          final List mostPopularList = data['mostPopular'] ?? [];
+          final List mostFavoriteList = data['mostFavorite'] ?? [];
+          final List latestCompletedList = data['latestCompleted'] ?? [];
 
           setState(() {
+            _spotlightAnime = spotlightList;
             _trendingAnime = trendingList
                 .map((json) => Anime.fromJson(json))
                 .toList();
-            _spotlightAnime = spotlightList;
             _topAiringAnime = topAiringList
+                .map((json) => Anime.fromJson(json))
+                .toList();
+            _mostPopularAnime = mostPopularList
+                .map((json) => Anime.fromJson(json))
+                .toList();
+            _mostFavoriteAnime = mostFavoriteList
+                .map((json) => Anime.fromJson(json))
+                .toList();
+            _latestCompletedAnime = latestCompletedList
                 .map((json) => Anime.fromJson(json))
                 .toList();
             _isLoading = false;
@@ -101,43 +117,147 @@ class _HomeScreenContentState extends State<HomeScreenContent>
       }
     } catch (e) {
       setState(() {
-        _errorMessage = "Connection Failed. Cannot reach external API: $e";
+        _errorMessage = "Connection Failed: $e";
         _isLoading = false;
       });
     }
   }
-  // -------------------------------------------------------------
 
-  // --- Spotlight Carousel Builder ---
+  // --- 1. Spotlight Section ---
   Widget _buildSpotlightCarousel() {
-    if (_spotlightAnime.isEmpty) {
-      return const SizedBox(height: 10);
-    }
-
-    // Use a large number for infinite scroll effect
+    if (_spotlightAnime.isEmpty) return const SizedBox(height: 10);
     final int infiniteCount = _spotlightAnime.length * 10000;
 
     return SizedBox(
       height: 230,
       child: PageView.builder(
         controller: _pageController,
-        onPageChanged: (index) {
-          setState(() {
-            _currentPage = index;
-          });
-        },
+        onPageChanged: (index) => setState(() => _currentPage = index),
         itemCount: infiniteCount,
         itemBuilder: (context, index) {
-          // Modular arithmetic to loop back to the actual list size
           final actualIndex = index % _spotlightAnime.length;
-          final item = _spotlightAnime[actualIndex];
-          return _buildSpotlightCard(item);
+          return _buildSpotlightCard(_spotlightAnime[actualIndex]);
         },
       ),
     );
   }
 
-  // Helper function for metadata chips
+  Widget _buildSpotlightCard(dynamic item) {
+    final String title = item['title'] ?? 'N/A';
+    final String poster = item['poster'] ?? '';
+    final String synopsis = item['synopsis'] ?? 'No synopsis available.';
+    final String id = item['id'] ?? '';
+    final String rank = item['rank']?.toString() ?? 'N/A';
+    final String type = item['type'] ?? 'N/A';
+    final String duration = item['duration'] ?? 'N/A';
+    final String backgroundImage = poster.replaceAll('1366x768', '1366x768');
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => DetailScreen(animeId: id, animeTitle: title),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          image: DecorationImage(
+            image: CachedNetworkImageProvider(backgroundImage),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.black.withOpacity(0.85),
+                    Colors.black.withOpacity(0.0),
+                  ],
+                  stops: const [0.0, 1.0],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  const Spacer(flex: 1),
+                  Flexible(
+                    flex: 5,
+                    child: Text(
+                      title,
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6.0,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.pink.shade300,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '#$rank Spotlight',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 9,
+                          ),
+                        ),
+                      ),
+                      _buildMetadataChip(type, Icons.tv, Colors.blueGrey),
+                      _buildMetadataChip(
+                        duration,
+                        Icons.timer,
+                        Colors.blueGrey,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Flexible(
+                    flex: 2,
+                    child: Text(
+                      synopsis,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildMetadataChip(String text, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -163,174 +283,11 @@ class _HomeScreenContentState extends State<HomeScreenContent>
     );
   }
 
-  // --- Spotlight Card Layout ---
-  Widget _buildSpotlightCard(dynamic item) {
-    final String title = item['title'] ?? 'N/A';
-    final String poster = item['poster'] ?? '';
-    final String synopsis = item['synopsis'] ?? 'No synopsis available.';
-    final String id = item['id'] ?? '';
+  // --- 2. Shared Widgets for Lists ---
 
-    final String rank = item['rank']?.toString() ?? 'N/A';
-    final String type = item['type'] ?? 'N/A';
-    final String aired = item['aired'] ?? 'N/A';
-    final String quality = item['quality'] ?? 'N/A';
-    final String duration = item['duration'] ?? 'N/A';
-
-    final int subEpisodes = item['episodes']?['sub'] ?? 0;
-    final int dubEpisodes = item['episodes']?['dub'] ?? 0;
-
-    final String backgroundImage = poster.replaceAll('1366x768', '1366x768');
-
-    return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => DetailScreen(animeId: id, animeTitle: title),
-          ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          image: DecorationImage(
-            image: CachedNetworkImageProvider(backgroundImage),
-            fit: BoxFit.cover,
-          ),
-        ),
-
-        child: Stack(
-          children: [
-            // 1. Gradient Overlay
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.black.withOpacity(0.85),
-                    Colors.black.withOpacity(0.4),
-                    Colors.black.withOpacity(0.0),
-                  ],
-                  stops: const [0.0, 0.5, 1.0],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                ),
-              ),
-            ),
-
-            // 2. Content Layer
-            Padding(
-              padding: const EdgeInsets.only(
-                left: 8.0,
-                top: 16.0,
-                right: 0.0,
-                bottom: 16.0,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  const Spacer(flex: 1),
-
-                  // Title
-                  Flexible(
-                    flex: 5,
-                    child: Text(
-                      title,
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        shadows: [Shadow(blurRadius: 3, color: Colors.black)],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // Metadata Chips Row
-                  Wrap(
-                    spacing: 6.0,
-                    runSpacing: 4.0,
-                    children: [
-                      // Rank Badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.pink.shade300,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          '#$rank Spotlight',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 9,
-                          ),
-                        ),
-                      ),
-                      // Other metadata chips
-                      _buildMetadataChip(type, Icons.tv, Colors.blueGrey),
-                      _buildMetadataChip(
-                        duration,
-                        Icons.timer,
-                        Colors.blueGrey,
-                      ),
-                      _buildMetadataChip(
-                        aired,
-                        Icons.calendar_today,
-                        Colors.blueGrey,
-                      ),
-                      _buildMetadataChip(quality, Icons.hd, Colors.blueGrey),
-                      if (subEpisodes > 0)
-                        _buildMetadataChip(
-                          '$subEpisodes Sub',
-                          Icons.closed_caption,
-                          Colors.green,
-                        ),
-                      if (dubEpisodes > 0)
-                        _buildMetadataChip(
-                          '$dubEpisodes Dub',
-                          Icons.mic,
-                          Colors.purple,
-                        ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  // Synopsis
-                  Flexible(
-                    flex: 2,
-                    child: Text(
-                      synopsis,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        height: 1.3,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- Anime Card Layout ---
+  // Standard Anime Card
   Widget _buildAnimeCard(Anime anime, {int? forcedRank}) {
     final displayRank = forcedRank ?? anime.rank;
-
     return GestureDetector(
       onTap: () {
         Navigator.of(context).push(
@@ -343,7 +300,7 @@ class _HomeScreenContentState extends State<HomeScreenContent>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Poster Image (Fixed Size 155px)
+          // Fixed Height Image Container
           SizedBox(
             height: 155,
             width: double.infinity,
@@ -362,7 +319,6 @@ class _HomeScreenContentState extends State<HomeScreenContent>
                         const Icon(Icons.error),
                   ),
                 ),
-                // 2. Ranking Overlay
                 if (displayRank != null)
                   Positioned(
                     top: 5,
@@ -390,7 +346,6 @@ class _HomeScreenContentState extends State<HomeScreenContent>
             ),
           ),
           const SizedBox(height: 4),
-          // 3. Title Text
           Text(
             anime.title,
             maxLines: 2,
@@ -406,16 +361,14 @@ class _HomeScreenContentState extends State<HomeScreenContent>
     );
   }
 
-  // --- View More Button (Matches Anime Card Size) ---
+  // View More Button
   Widget _buildViewMoreButton() {
     return GestureDetector(
       onTap: () {
-        // TODO: Navigate to full list screen
-        print("View More Clicked");
+        print("View More Clicked"); // TODO: Navigation
       },
       child: Column(
         children: [
-          // Matches the SizedBox height of the poster (155px)
           Container(
             height: 155,
             width: double.infinity,
@@ -443,14 +396,64 @@ class _HomeScreenContentState extends State<HomeScreenContent>
             ),
           ),
           const SizedBox(height: 4),
-          // Empty placeholder text to match alignment of anime titles
           const Text("", style: TextStyle(fontSize: 13)),
         ],
       ),
     );
   }
 
-  // --- Main Build Method ---
+  // --- 3. Reusable Section Builder (Top Airing Logic) ---
+  Widget _buildHorizontalSection(String title, List<Anime> animeList) {
+    // Logic: Show max 5 items, then append View More button.
+    final int animeCount = animeList.length > 5 ? 5 : animeList.length;
+    final int itemCount = animeList.isEmpty ? 0 : animeCount + 1;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 12.0, top: 20.0, bottom: 8.0),
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 200,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.only(left: 12.0),
+            itemCount: itemCount,
+            itemBuilder: (context, index) {
+              // Last item is always the button
+              if (index == animeCount) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 12.0),
+                  child: SizedBox(width: 110, child: _buildViewMoreButton()),
+                );
+              }
+
+              final anime = animeList[index];
+              return Padding(
+                padding: const EdgeInsets.only(right: 12.0),
+                child: SizedBox(
+                  width: 110,
+                  // Force Rank = Index + 1 for visual consistency
+                  child: _buildAnimeCard(anime, forcedRank: index + 1),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --- Main Build ---
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -460,7 +463,6 @@ class _HomeScreenContentState extends State<HomeScreenContent>
         child: CircularProgressIndicator(color: Colors.yellow),
       );
     }
-
     if (_errorMessage.isNotEmpty) {
       return Center(
         child: Text(
@@ -471,20 +473,12 @@ class _HomeScreenContentState extends State<HomeScreenContent>
       );
     }
 
-    // Top Airing Logic:
-    // Calculate how many anime to show (max 5)
-    final int animeCount = _topAiringAnime.length > 5
-        ? 5
-        : _topAiringAnime.length;
-    // The total list count is the anime count + 1 (for the button), unless the list is empty
-    final int itemCount = _topAiringAnime.isEmpty ? 0 : animeCount + 1;
-
     return ListView(
       children: [
-        // 0. Spotlight Carousel
+        // 0. Spotlight
         _buildSpotlightCarousel(),
 
-        // 1. Trending Now Section
+        // 1. Trending Now (Kept as full scrolling list without "View More" limit logic, per standard UI)
         const Padding(
           padding: EdgeInsets.only(left: 12.0, top: 10.0, bottom: 8.0),
           child: Text(
@@ -512,46 +506,19 @@ class _HomeScreenContentState extends State<HomeScreenContent>
           ),
         ),
 
-        // 2. Top Airing Section
-        const Padding(
-          padding: EdgeInsets.only(left: 12.0, top: 20.0, bottom: 8.0),
-          child: Text(
-            'Top Airing',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-        ),
-        SizedBox(
-          height: 200,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.only(left: 12.0),
-            itemCount: itemCount,
-            itemBuilder: (context, index) {
-              // If the index equals the number of anime we are showing, it means we are at the end: Show Button
-              if (index == animeCount) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 12.0),
-                  child: SizedBox(width: 110, child: _buildViewMoreButton()),
-                );
-              }
+        // 2. Top Airing
+        _buildHorizontalSection("Top Airing", _topAiringAnime),
 
-              final anime = _topAiringAnime[index];
-              return Padding(
-                padding: const EdgeInsets.only(right: 12.0),
-                child: SizedBox(
-                  width: 110,
-                  // Pass rank + 1 to force display #1, #2, etc.
-                  child: _buildAnimeCard(anime, forcedRank: index + 1),
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 16),
+        // 3. Most Popular
+        _buildHorizontalSection("Most Popular", _mostPopularAnime),
+
+        // 4. Most Favorite
+        _buildHorizontalSection("Most Favorite", _mostFavoriteAnime),
+
+        // 5. Recently Completed
+        _buildHorizontalSection("Recently Completed", _latestCompletedAnime),
+
+        const SizedBox(height: 30),
       ],
     );
   }
