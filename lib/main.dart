@@ -5,6 +5,7 @@ import 'screens/anime_search.dart';
 import 'home_screen_content.dart'; // Tab 0 (Home)
 import 'screens/az_list_screen.dart'; // Tab 1 (A-Z)
 import 'screens/schedule_screen.dart'; // Tab 2 (Schedule)
+import 'package:media_kit/media_kit.dart';
 
 void main() {
   runApp(const HiAnimeApp());
@@ -57,10 +58,8 @@ class _MainNavigatorState extends State<MainNavigator> {
     GlobalKey<NavigatorState>(), // Schedule
   ];
 
-  // List of screens
+  // Lists to hold screens and observers
   List<Widget> _tabScreens = [];
-
-  // Custom Observers to track navigation stack changes per tab
   List<NavigatorObserver> _navigatorObservers = [];
 
   @override
@@ -74,13 +73,15 @@ class _MainNavigatorState extends State<MainNavigator> {
       const ScheduleScreen(), // Index 2
     ];
 
-    // 2. Initialize Observers (Count = 3)
-    // We initialize this immediately to prevent LateInitializationError
+    // 2. Initialize Observers
+    // We use a generator to create a unique observer for each tab
     _navigatorObservers = List.generate(
       3,
       (index) => _TabNavigatorObserver(() {
-        // Use PostFrameCallback to avoid "setState during build" errors
+        // Rebuild the main navigator when a sub-navigator pushes/pops
+        // This updates the 'Leading' (Back) button state in the AppBar
         if (mounted) {
+          // PostFrameCallback prevents "setState during build" errors
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) setState(() {});
           });
@@ -90,12 +91,12 @@ class _MainNavigatorState extends State<MainNavigator> {
   }
 
   void _onItemTapped(int index) {
-    // Logic: If tapping Home (Index 0) while on Home, reset scrolls
+    // Logic: If tapping Home (Index 0) while already on Home, reset scrolls
     if (index == 0 && index == _selectedIndex) {
       _homeScreenKey.currentState?.resetScrollPositions();
     }
 
-    // Logic: If tapping any tab that is already selected, pop to root
+    // Logic: If tapping any tab that is already selected, pop to its root
     if (index == _selectedIndex) {
       _navigatorKeys[index].currentState?.popUntil((route) => route.isFirst);
     }
@@ -109,7 +110,7 @@ class _MainNavigatorState extends State<MainNavigator> {
   Widget _buildTabNavigator(int index) {
     return Navigator(
       key: _navigatorKeys[index],
-      observers: [_navigatorObservers[index]], // Attach observer here
+      observers: [_navigatorObservers[index]], // Attach the specific observer
       onGenerateRoute: (routeSettings) {
         return MaterialPageRoute(builder: (context) => _tabScreens[index]);
       },
@@ -129,14 +130,14 @@ class _MainNavigatorState extends State<MainNavigator> {
         final navigatorState = _navigatorKeys[_selectedIndex].currentState;
         if (navigatorState != null && navigatorState.canPop()) {
           navigatorState.pop();
-          return false; // Prevent closing app
+          return false; // Prevent closing app, pop internal route instead
         }
-        return true; // Close app if at root
+        return true; // Close app if at root of current tab
       },
       child: Scaffold(
         appBar: AppBar(
           // 3. Conditional Leading Button
-          // Only show Back Button if we can pop (not at root)
+          // Only show Back Button if we can pop (not at root of tab)
           leading: canPop
               ? IconButton(
                   icon: const Icon(Icons.arrow_back_ios, color: Colors.white),

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../models/anime_details.dart';
+import 'episode_list_screen.dart';
 
 class DetailScreen extends StatefulWidget {
   final String animeId;
@@ -24,8 +25,10 @@ class _DetailScreenState extends State<DetailScreen> {
   bool _isLoading = true;
   String? _errorMessage;
 
+  // Controller to auto-scroll the seasons list
   final ScrollController _seasonsScrollController = ScrollController();
 
+  // Theme Colors
   final Color _accentColor = Colors.yellow;
   final Color _greenColor = const Color(0xFFB9FBC0);
   final Color _blueColor = const Color(0xFFBDE0FE);
@@ -64,7 +67,7 @@ class _DetailScreenState extends State<DetailScreen> {
               _isLoading = false;
             });
 
-            // Scroll after build
+            // Scroll to the active season after the UI is built
             WidgetsBinding.instance.addPostFrameCallback((_) {
               _scrollToActiveSeason();
             });
@@ -92,13 +95,13 @@ class _DetailScreenState extends State<DetailScreen> {
   void _scrollToActiveSeason() {
     if (_details == null || _details!.moreSeasons.isEmpty) return;
 
+    // Find index of the active season (matching ID or explicit flag)
     int activeIndex = _details!.moreSeasons.indexWhere((season) {
       return season['id'] == widget.animeId || (season['isActive'] == true);
     });
 
     if (activeIndex != -1) {
-      // With contentPadding set in the ListView, offset 0 centers the first item.
-      // So, to center item N, we simply scroll N * (width + gap).
+      // Calculate scroll offset: Index * (CardWidth + Spacing)
       double targetOffset = activeIndex * (_cardWidth + _cardSpacing);
 
       if (_seasonsScrollController.hasClients) {
@@ -140,19 +143,19 @@ class _DetailScreenState extends State<DetailScreen> {
     final int sub = details.episodes['sub'] ?? 0;
     final int dub = details.episodes['dub'] ?? 0;
 
-    // Calculate Padding to Center Items
-    // (ScreenWidth - CardWidth) / 2 ensures the first and last items sit in the middle.
+    // Calculate Padding to Center Items visually in the list
+    // (ScreenWidth - CardWidth) / 2 ensures the first/last items can sit in the middle.
     final double centeringPadding =
         (MediaQuery.of(context).size.width - _cardWidth) / 2;
 
     return SingleChildScrollView(
-      // Main Vertical Scroll
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 20),
 
-          // --- 1. Top Section ---
+          // --- 1. Top Section (Poster + Title) ---
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Row(
@@ -169,6 +172,8 @@ class _DetailScreenState extends State<DetailScreen> {
                       fit: BoxFit.cover,
                       placeholder: (context, url) =>
                           Container(color: Colors.grey[900]),
+                      errorWidget: (context, url, error) =>
+                          const Icon(Icons.error),
                     ),
                   ),
                 ),
@@ -205,7 +210,7 @@ class _DetailScreenState extends State<DetailScreen> {
 
           const SizedBox(height: 20),
 
-          // --- 2. Metadata Badges ---
+          // --- 2. Metadata Badges (Rating, Quality, Sub/Dub, Type) ---
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -256,7 +261,7 @@ class _DetailScreenState extends State<DetailScreen> {
 
           const SizedBox(height: 24),
 
-          // --- 3. Watch Button ---
+          // --- 3. Watch Now Button ---
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: SizedBox(
@@ -264,7 +269,15 @@ class _DetailScreenState extends State<DetailScreen> {
               height: 54,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  // Play Action
+                  // Navigate to Episode List Screen
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => EpisodeListScreen(
+                        animeId: widget.animeId,
+                        animeTitle: widget.animeTitle,
+                      ),
+                    ),
+                  );
                 },
                 icon: const Icon(
                   Icons.play_arrow,
@@ -321,7 +334,7 @@ class _DetailScreenState extends State<DetailScreen> {
 
           const SizedBox(height: 20),
 
-          // --- 5. Genre Tags ---
+          // --- 5. Full Genre Tags ---
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Wrap(
@@ -357,17 +370,17 @@ class _DetailScreenState extends State<DetailScreen> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFFFFBADE),
+                  color: Color(0xFFFFBADE), // Pinkish accent title
                 ),
               ),
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 100,
+              height: 100, // Fixed height for season cards
               child: ListView.separated(
                 controller: _seasonsScrollController,
                 scrollDirection: Axis.horizontal,
-                // Apply dynamic padding here to allow centering
+                // Apply dynamic padding to center the items
                 padding: EdgeInsets.symmetric(horizontal: centeringPadding),
                 itemCount: details.moreSeasons.length,
                 separatorBuilder: (context, index) =>
@@ -376,9 +389,12 @@ class _DetailScreenState extends State<DetailScreen> {
                   final season = details.moreSeasons[index];
                   final String seasonId = season['id'];
                   final String seasonTitle = season['title'];
-                  final String displayTitle = season['alternativeTitle'] != ''
+                  // Use alternative title if available (usually shorter like "Season 2")
+                  final String displayTitle =
+                      (season['alternativeTitle'] != null &&
+                          season['alternativeTitle'].toString().isNotEmpty)
                       ? season['alternativeTitle']
-                      : season['title'];
+                      : seasonTitle;
                   final String seasonPoster = season['poster'];
 
                   final bool isActive =
@@ -401,12 +417,14 @@ class _DetailScreenState extends State<DetailScreen> {
                       width: _cardWidth,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(10),
+                        // Highlight active season with accent border
                         border: isActive
                             ? Border.all(color: _accentColor, width: 2)
                             : Border.all(color: Colors.white10),
                         image: DecorationImage(
                           image: CachedNetworkImageProvider(seasonPoster),
                           fit: BoxFit.cover,
+                          // Darken image to make white text readable
                           colorFilter: ColorFilter.mode(
                             Colors.black.withOpacity(0.6),
                             BlendMode.darken,
@@ -422,6 +440,7 @@ class _DetailScreenState extends State<DetailScreen> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
+                              // Highlight text color if active
                               color: isActive ? _accentColor : Colors.white,
                             ),
                           ),
@@ -438,6 +457,8 @@ class _DetailScreenState extends State<DetailScreen> {
       ),
     );
   }
+
+  // --- Helper Widgets ---
 
   Widget _buildBadge({
     required String text,

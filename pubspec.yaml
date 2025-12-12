@@ -35,10 +35,20 @@ dependencies:
   google_fonts: ^6.1.0
   intl: ^0.18.0 
   html: ^0.15.4
-
+  video_player: ^2.8.6 # Handles the actual playback/HLS
+  chewie: ^1.8.1       # Provides the UI/Controls
+  wakelock_plus: ^1.2.2 # Optional: Keeps
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  webview_flutter: ^4.8.0
+ # MediaKit (The Video Player)
+  media_kit: ^1.1.10
+  media_kit_video: ^1.2.4
+  
+  # Corrected Native Libraries (Platform before 'video')
+  media_kit_libs_android_video: ^1.1.4  # WAS WRONG
+  media_kit_libs_ios_video: ^1.1.4      # WAS WRONG
 
 dev_dependencies:
   flutter_test:
