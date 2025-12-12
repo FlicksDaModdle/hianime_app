@@ -6,6 +6,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import 'models/anime.dart';
 import 'screens/detail_screen.dart';
+import 'screens/top_airing_screen.dart'; // Make sure this import is here
+import 'screens/most_popular_screen.dart'; // Make sure this import is here
+import 'screens/most_favorite_screen.dart'; // Make sure this import is here
+import 'screens/latest_completed_screen.dart'; // Make sure this import is here
 
 class HomeScreenContent extends StatefulWidget {
   const HomeScreenContent({super.key});
@@ -361,11 +365,29 @@ class _HomeScreenContentState extends State<HomeScreenContent>
     );
   }
 
-  // View More Button
-  Widget _buildViewMoreButton() {
+  // View More Button (Updated with Navigation Logic)
+  Widget _buildViewMoreButton(String sectionTitle) {
     return GestureDetector(
       onTap: () {
-        print("View More Clicked"); // TODO: Navigation
+        if (sectionTitle == 'Top Airing') {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => const TopAiringScreen()),
+          );
+        } else if (sectionTitle == 'Most Popular') {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => const MostPopularScreen()),
+          );
+        } else if (sectionTitle == 'Most Favorite') {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => const MostFavoriteScreen()),
+          );
+        } else if (sectionTitle == 'Recently Completed') {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const LatestCompletedScreen(),
+            ),
+          );
+        }
       },
       child: Column(
         children: [
@@ -402,7 +424,7 @@ class _HomeScreenContentState extends State<HomeScreenContent>
     );
   }
 
-  // --- 3. Reusable Section Builder (Top Airing Logic) ---
+  // --- 3. Reusable Section Builder ---
   Widget _buildHorizontalSection(String title, List<Anime> animeList) {
     // Logic: Show max 5 items, then append View More button.
     final int animeCount = animeList.length > 5 ? 5 : animeList.length;
@@ -433,7 +455,11 @@ class _HomeScreenContentState extends State<HomeScreenContent>
               if (index == animeCount) {
                 return Padding(
                   padding: const EdgeInsets.only(right: 12.0),
-                  child: SizedBox(width: 110, child: _buildViewMoreButton()),
+                  child: SizedBox(
+                    width: 110,
+                    // Pass the title so we know which screen to open
+                    child: _buildViewMoreButton(title),
+                  ),
                 );
               }
 
@@ -478,7 +504,7 @@ class _HomeScreenContentState extends State<HomeScreenContent>
         // 0. Spotlight
         _buildSpotlightCarousel(),
 
-        // 1. Trending Now (Kept as full scrolling list without "View More" limit logic, per standard UI)
+        // 1. Trending Now (Standard list, no view more limit)
         const Padding(
           padding: EdgeInsets.only(left: 12.0, top: 10.0, bottom: 8.0),
           child: Text(

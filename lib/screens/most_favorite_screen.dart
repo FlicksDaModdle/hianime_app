@@ -6,14 +6,14 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/anime.dart';
 import 'detail_screen.dart';
 
-class TopAiringScreen extends StatefulWidget {
-  const TopAiringScreen({super.key});
+class MostFavoriteScreen extends StatefulWidget {
+  const MostFavoriteScreen({super.key});
 
   @override
-  State<TopAiringScreen> createState() => _TopAiringScreenState();
+  State<MostFavoriteScreen> createState() => _MostFavoriteScreenState();
 }
 
-class _TopAiringScreenState extends State<TopAiringScreen> {
+class _MostFavoriteScreenState extends State<MostFavoriteScreen> {
   // Scroll Controller
   final ScrollController _scrollController = ScrollController();
 
@@ -48,7 +48,7 @@ class _TopAiringScreenState extends State<TopAiringScreen> {
 
     try {
       final url = Uri.parse(
-        '$_baseApiUrl/animes/top-airing?page=$_currentPage',
+        '$_baseApiUrl/animes/most-favorite?page=$_currentPage',
       );
       final response = await http.get(url);
       final Map<String, dynamic> fullResponse = json.decode(response.body);
@@ -259,7 +259,7 @@ class _TopAiringScreenState extends State<TopAiringScreen> {
         backgroundColor: Colors.black,
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
-          'Top Airing',
+          'Most Favorite',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
       ),
