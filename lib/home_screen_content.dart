@@ -30,6 +30,9 @@ class _HomeScreenContentState extends State<HomeScreenContent>
   Timer? _timer;
   int _currentPage = 0;
 
+  // Final working external API URL
+  final String _baseApiUrl = 'https://hianime-api-ufh9.onrender.com/api/v1';
+
   @override
   void initState() {
     super.initState();
@@ -64,9 +67,9 @@ class _HomeScreenContentState extends State<HomeScreenContent>
     });
   }
 
-  // --- API Fetch Logic (Unchanged) ---
+  // --- API Fetch Logic ---
   Future<void> fetchHomeData() async {
-    final url = Uri.parse('https://hianime-api-ufh9.onrender.com/api/v1/home');
+    final url = Uri.parse('$_baseApiUrl/home');
 
     try {
       final response = await http.get(url);
@@ -98,20 +101,20 @@ class _HomeScreenContentState extends State<HomeScreenContent>
       }
     } catch (e) {
       setState(() {
-        _errorMessage =
-            "Connection Failed. Make sure the API server is running!\nError: $e";
+        _errorMessage = "Connection Failed. Cannot reach external API: $e";
         _isLoading = false;
       });
     }
   }
   // -------------------------------------------------------------
 
-  // --- Spotlight Carousel Builder (Correctly Defined) ---
+  // --- Spotlight Carousel Builder ---
   Widget _buildSpotlightCarousel() {
     if (_spotlightAnime.isEmpty) {
       return const SizedBox(height: 10);
     }
 
+    // Use a large number for infinite scroll effect
     final int infiniteCount = _spotlightAnime.length * 10000;
 
     return SizedBox(
@@ -125,6 +128,7 @@ class _HomeScreenContentState extends State<HomeScreenContent>
         },
         itemCount: infiniteCount,
         itemBuilder: (context, index) {
+          // Modular arithmetic to loop back to the actual list size
           final actualIndex = index % _spotlightAnime.length;
           final item = _spotlightAnime[actualIndex];
           return _buildSpotlightCard(item);
@@ -133,7 +137,7 @@ class _HomeScreenContentState extends State<HomeScreenContent>
     );
   }
 
-  // Helper function for metadata chips (Unchanged)
+  // Helper function for metadata chips
   Widget _buildMetadataChip(String text, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -159,14 +163,13 @@ class _HomeScreenContentState extends State<HomeScreenContent>
     );
   }
 
-  // --- Spotlight Card (UNCHANGED LAYOUT/VISUALS) ---
+  // --- Spotlight Card Layout ---
   Widget _buildSpotlightCard(dynamic item) {
     final String title = item['title'] ?? 'N/A';
     final String poster = item['poster'] ?? '';
     final String synopsis = item['synopsis'] ?? 'No synopsis available.';
     final String id = item['id'] ?? '';
 
-    // Extract metadata fields
     final String rank = item['rank']?.toString() ?? 'N/A';
     final String type = item['type'] ?? 'N/A';
     final String aired = item['aired'] ?? 'N/A';
@@ -198,7 +201,7 @@ class _HomeScreenContentState extends State<HomeScreenContent>
 
         child: Stack(
           children: [
-            // 1. GRADIENT OVERLAY LAYER (Soft Transition)
+            // 1. Gradient Overlay
             Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(10),
@@ -215,7 +218,7 @@ class _HomeScreenContentState extends State<HomeScreenContent>
               ),
             ),
 
-            // 2. CONTENT LAYER (Text)
+            // 2. Content Layer
             Padding(
               padding: const EdgeInsets.only(
                 left: 8.0,
@@ -229,7 +232,7 @@ class _HomeScreenContentState extends State<HomeScreenContent>
                 children: [
                   const Spacer(flex: 1),
 
-                  // Title Dominance (Flex 5, MaxLines 4)
+                  // Title
                   Flexible(
                     flex: 5,
                     child: Text(
@@ -301,7 +304,7 @@ class _HomeScreenContentState extends State<HomeScreenContent>
 
                   const SizedBox(height: 6),
 
-                  // Synopsis (MaxLines 2)
+                  // Synopsis
                   Flexible(
                     flex: 2,
                     child: Text(
@@ -324,7 +327,86 @@ class _HomeScreenContentState extends State<HomeScreenContent>
     );
   }
 
-  // --- Main Build Method (ERROR FIX IS HERE) ---
+  // --- Anime Card Layout (Used for both Trending & Top Airing) ---
+  Widget _buildAnimeCard(Anime anime, {int? forcedRank}) {
+    final displayRank = forcedRank ?? anime.rank;
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) =>
+                DetailScreen(animeId: anime.id, animeTitle: anime.title),
+          ),
+        );
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. Poster Image (Fixed Size for Uniformity)
+          SizedBox(
+            height: 155, // Fixed height ensures all posters match exactly
+            width: double.infinity,
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: CachedNetworkImage(
+                    imageUrl: anime.image,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                    placeholder: (context, url) =>
+                        Container(color: Colors.grey[900]),
+                    errorWidget: (context, url, error) =>
+                        const Icon(Icons.error),
+                  ),
+                ),
+                // 2. Ranking Overlay
+                if (displayRank != null)
+                  Positioned(
+                    top: 5,
+                    left: 5,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.yellow,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        "#$displayRank",
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          // 3. Title Text
+          Text(
+            anime.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Main Build Method ---
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -345,13 +427,9 @@ class _HomeScreenContentState extends State<HomeScreenContent>
       );
     }
 
-    final int topAiringLimit = _topAiringAnime.length > 5
-        ? 5
-        : _topAiringAnime.length;
-
     return ListView(
       children: [
-        // FIXED CALL: Ensure this is correctly spelled.
+        // 0. Spotlight Carousel
         _buildSpotlightCarousel(),
 
         // 1. Trending Now Section
@@ -399,137 +477,21 @@ class _HomeScreenContentState extends State<HomeScreenContent>
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.only(left: 12.0),
-            itemCount: topAiringLimit + (_topAiringAnime.length > 5 ? 1 : 0),
+            itemCount: _topAiringAnime.length,
             itemBuilder: (context, index) {
-              if (index == topAiringLimit && _topAiringAnime.length > 5) {
-                return _buildViewMoreButton();
-              }
-
               final anime = _topAiringAnime[index];
               return Padding(
                 padding: const EdgeInsets.only(right: 12.0),
-                child: SizedBox(width: 110, child: _buildAnimeCard(anime)),
+                child: SizedBox(
+                  width: 110,
+                  child: _buildAnimeCard(anime, forcedRank: index + 1),
+                ),
               );
             },
           ),
         ),
         const SizedBox(height: 16),
       ],
-    );
-  }
-
-  // --- View More Button Widget (Unchanged) ---
-  Widget _buildViewMoreButton() {
-    return GestureDetector(
-      onTap: () {
-        // TODO: Navigate to the full Top Airing list screen
-        print('View More Top Airing pressed');
-      },
-      child: Container(
-        width: 40, // Width for the vertical button container
-        margin: const EdgeInsets.only(right: 12.0),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1F1F1F),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Center(
-          child: RotatedBox(
-            quarterTurns:
-                3, // Rotate 270 degrees clockwise (or 90 counter-clockwise)
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.arrow_forward_ios,
-                  size: 12,
-                  color: Colors.yellow,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'View More',
-                  style: TextStyle(
-                    color: Colors.yellow.shade400,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // --- Trending Card Builder Logic (Unchanged) ---
-  Widget _buildAnimeCard(Anime anime) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) =>
-                DetailScreen(animeId: anime.id, animeTitle: anime.title),
-          ),
-        );
-      },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: CachedNetworkImage(
-                    imageUrl: anime.image,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    placeholder: (context, url) =>
-                        Container(color: Colors.grey[900]),
-                    errorWidget: (context, url, error) =>
-                        const Icon(Icons.error),
-                  ),
-                ),
-                if (anime.rank != null)
-                  Positioned(
-                    top: 5,
-                    left: 5,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.yellow,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        "#${anime.rank}",
-                        style: const TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            anime.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 13,
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

@@ -5,7 +5,7 @@ import 'screens/anime_search.dart';
 import 'home_screen_content.dart'; // Tab 1 (Center)
 import 'screens/az_list_screen.dart'; // Tab 0
 import 'screens/genres_screen.dart'; // Tab 3
-import 'screens/top_airing_screen.dart'; // Still imported, but not in the tab list
+// Still imported, but not in the tab list
 import 'screens/schedule_screen.dart'; // Tab 2
 
 void main() {
